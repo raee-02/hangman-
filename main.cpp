@@ -176,17 +176,17 @@ public:
             }
             else {
                 handleEvents(); // Handle events for restarting or exiting
-                displayMessage("Press Enter to restart or Escape to exit.", true);
+                displayMessage("Press 'R' to restart \n O R \n 'E' to exit.", true);
 
                 // Wait for user input to restart or exit
                 while (true) {
                     handleEvents(); // Process events (including user input)
-                    if (inputBuffer == "\r") { // Enter key pressed
+                    if (inputBuffer == "r") { // Enter key pressed
                         resetGame(); // Restart the game
                         inputBuffer.clear(); // Clear buffer after processing
                         break; // Exit the loop and restart the game
                     }
-                    else if (inputBuffer == "\x1B") { // Escape key pressed
+                    else if (inputBuffer == "e") { // Escape key pressed
                         window.close(); // Exit the game
                         inputBuffer.clear(); // Clear buffer after processing
                         break; // Exit the loop and close the window
