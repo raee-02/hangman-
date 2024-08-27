@@ -1,4 +1,5 @@
 #include <SFML/Graphics.hpp>
+#include <SFML/Window.hpp>
 #include <iostream>
 #include <string>
 #include <vector>
@@ -6,6 +7,7 @@
 #include <algorithm>
 
 using namespace std;
+
 class HangmanDrawer {
 public:
     HangmanDrawer(sf::RenderWindow& window) : window(window) {
@@ -23,22 +25,18 @@ public:
     }
 
     void drawHangman(int incorrectGuesses) {
-        
         sf::Vector2u windowSize = window.getSize();
         float centerX = windowSize.x / 2.0f;
-        float centerY = windowSize.y / 2.0f;
+        float centerY = window.getSize().y / 2.0f;
 
-        
         drawGallows(centerX, centerY);
-
-        
         drawHead(centerX, centerY, incorrectGuesses);
         drawBody(centerX, centerY, incorrectGuesses);
         drawArms(centerX, centerY, incorrectGuesses);
         drawLegs(centerX, centerY, incorrectGuesses);
     }
 
-    void displayGame(const std::string& guessed, const std::vector<char>& incorrectGuesses, int attempts, const std::string& currentPlayer, const std::string& word) {
+    void displayGame(const std::string& guessed, const std::vector<char>& incorrectGuesses, int attempts, const std::string& word) {
         std::stringstream ss;
         ss << "WORD: " << guessed << "\n";
         ss << "INCORRECT GUESSES: ";
@@ -46,25 +44,27 @@ public:
             ss << ch << ' ';
         }
         ss << "\nAttempts left: " << attempts << "\n";
-        ss << currentPlayer << "'s Turn\n";
+
         updateText(ss.str());
 
         window.clear(sf::Color::Black);
-        drawHangman(6 - attempts); 
+        drawHangman(6 - attempts);
         window.draw(text);
 
         if (attempts == 0 || guessed == word) {
             std::string gameOverText = guessed == word ? "Congratulations! You've guessed the word!" : "Game Over! The word was " + word;
             sf::Text gameOver(gameOverText, font, 30);
             gameOver.setFillColor(sf::Color::Red);
-            gameOver.setPosition(40, window.getSize().y / 2.0f - 20); 
+            gameOver.setPosition(40, window.getSize().y / 2.0f - 20);
             window.draw(gameOver);
         }
 
         window.display();
     }
 
-
+    sf::Font& getFont() {
+        return font;
+    }
 
 private:
     sf::RenderWindow& window;
@@ -72,7 +72,6 @@ private:
     sf::Text text;
 
     void drawGallows(float centerX, float centerY) {
-        
         sf::VertexArray gallowsBase(sf::LinesStrip, 2);
         gallowsBase[0].position = sf::Vector2f(centerX - 25, centerY + 100);
         gallowsBase[1].position = sf::Vector2f(centerX + 25, centerY + 100);
@@ -165,133 +164,174 @@ private:
     }
 };
 
-
-class Player {
-public:
-    Player(const std::string& name) : name(name), score(0) {}
-
-    void increaseScore() {
-        ++score;
-    }
-
-    int getScore() const {
-        return score;
-    }
-
-    const std::string& getName() const {
-        return name;
-    }
-
-private:
-    std::string name;
-    int score;
-};
-
 class HangmanGame {
 public:
     HangmanGame(sf::RenderWindow& window, HangmanDrawer& drawer)
-        : window(window), drawer(drawer), roundNumber(1) {
-        players.push_back(Player("Player 1"));
-        players.push_back(Player("Player 2"));
-    }
+        : window(window), drawer(drawer), attempts(6), gameRunning(true) {}
 
-    void playRound() {
-        std::string word;
-        Player& currentPlayer = players[roundNumber % 2];
-        Player& guessingPlayer = players[(roundNumber + 1) % 2];
+    void startGame() {
+        while (window.isOpen()) {
+            if (gameRunning) {
+                playRound(); // Run the main game loop
+            }
+            else {
+                handleEvents(); // Handle events for restarting or exiting
+                displayMessage("Press Enter to restart or Escape to exit.", true);
 
-        std::cout << "| R O U N D " << roundNumber << ": |\n";
-        std::cout << endl;
-        
-        std::cout << currentPlayer.getName() << "|ENTER A WORD: ";
-        std::cin >> word;
-        std::cin.ignore(); 
-
-        system("cls");
-
-
-        std::cout << "|GUESS THE WORD|\n";
-        std::cout << std::endl;
-
-        
-        std::string guessed(word.size(), '_'); 
-        std::vector<char> incorrectGuesses;
-        int attempts = 6;
-
-        
-        while (attempts > 0 && guessed != word) {
-            drawer.displayGame(guessed, incorrectGuesses, attempts, guessingPlayer.getName(), word);
-
-
-            bool validInput = false;
-            while (window.isOpen() && !validInput) {
-                sf::Event event;
-                while (window.pollEvent(event)) {
-                    if (event.type == sf::Event::Closed) {
-                        window.close();
+                // Wait for user input to restart or exit
+                while (true) {
+                    handleEvents(); // Process events (including user input)
+                    if (inputBuffer == "\r") { // Enter key pressed
+                        resetGame(); // Restart the game
+                        inputBuffer.clear(); // Clear buffer after processing
+                        break; // Exit the loop and restart the game
                     }
-                    else if (event.type == sf::Event::TextEntered) {
-                        if (event.text.unicode < 128) {
-                            char guess = tolower(static_cast<char>(event.text.unicode));
-                            if (guess >= 'a' && guess <= 'z') {
-                                if (word.find(guess) != std::string::npos) {
-                                   
-                                    for (size_t i = 0; i < word.size(); ++i) {
-                                        if (word[i] == guess) {
-                                            guessed[i] = guess;
-                                        }
-                                    }
-                                }
-                                else {
-                                    
-                                    if (find(incorrectGuesses.begin(), incorrectGuesses.end(), guess) == incorrectGuesses.end()) {
-                                        incorrectGuesses.push_back(guess);
-                                        --attempts;
-                                    }
-                                }
-                                validInput = true;
-                            }
-                        }
-                        if (event.text.unicode == '\r') { 
-                            validInput = true;
-                        }
+                    else if (inputBuffer == "\x1B") { // Escape key pressed
+                        window.close(); // Exit the game
+                        inputBuffer.clear(); // Clear buffer after processing
+                        break; // Exit the loop and close the window
                     }
                 }
             }
         }
-
-        if (guessed == word) {
-            cout << "|C O N G R A T U L A T I O N S|/n " << guessingPlayer.getName() << "! You've guessed the word!\n";
-            guessingPlayer.increaseScore();
-        }
-        else {
-            cout << "|S O R R Y| \n " << guessingPlayer.getName() << ". You've run out of attempts. The word was |" << word << "|.\n" << endl;
-        }
-
-        roundNumber++;
     }
 
-    void startGame() {
-        while (window.isOpen()) {
-            playRound();
 
-           
-            cout << "|Player 1 Score: " << players[0].getScore() << "|\n";
-            cout << "|Player 2 Score: " << players[1].getScore() << "|\n" << endl;
-            cout << "Press enter";
-            cin.ignore(); 
-        }
-    }
 
 private:
     sf::RenderWindow& window;
     HangmanDrawer& drawer;
-    vector<Player> players;
-    int roundNumber;
+    std::string inputBuffer;
+    std::string word;
+    std::string guessed;
+    std::vector<char> incorrectGuesses;
+    int attempts;
+    bool gameRunning;
+
+    void handleEvents() {
+        sf::Event event;
+        while (window.pollEvent(event)) {
+            if (event.type == sf::Event::Closed) {
+                window.close(); // Close the window
+            }
+            else if (event.type == sf::Event::TextEntered) {
+                if (event.text.unicode < 128) {
+                    char enteredChar = static_cast<char>(event.text.unicode);
+                    if (enteredChar == '\b') { // Backspace
+                        if (!inputBuffer.empty()) {
+                            inputBuffer.pop_back();
+                        }
+                    }
+                    else if (enteredChar == '\r' || enteredChar == '\n') { // Enter key
+                        processInput(); // Process input when Enter is pressed
+                    }
+                    else if (enteredChar == '\x1B') { // Escape key
+                        gameRunning = false; // Stop the game loop
+                    }
+                    else if (isalpha(enteredChar)) { // Only accept alphabetic characters
+                        inputBuffer += tolower(enteredChar);
+                    }
+                }
+            }
+        }
+    }
+
+
+
+    void processInput() {
+        if (word.empty()) {
+            word = inputBuffer;
+            inputBuffer.clear();
+            guessed.assign(word.size(), '_');
+            incorrectGuesses.clear();
+            attempts = 6;
+        }
+        else {
+            if (inputBuffer.length() == word.length()) {
+                if (inputBuffer == word) {
+                    guessed = word; // Correct guess
+                }
+                else {
+                    attempts = 0; // End game on wrong full word guess
+                }
+            }
+            else if (inputBuffer.length() == 1) {
+                char guess = inputBuffer[0];
+                if (word.find(guess) != std::string::npos) {
+                    for (size_t i = 0; i < word.size(); ++i) {
+                        if (word[i] == guess) {
+                            guessed[i] = guess;
+                        }
+                    }
+                }
+                else {
+                    if (find(incorrectGuesses.begin(), incorrectGuesses.end(), guess) == incorrectGuesses.end()) {
+                        incorrectGuesses.push_back(guess);
+                        --attempts;
+                    }
+                }
+            }
+            inputBuffer.clear();
+        }
+    }
+
+    void displayMessage(const std::string& message, bool waitForInput) {
+        sf::Text text(message, drawer.getFont(), 20);
+        text.setFillColor(sf::Color::White);
+        text.setPosition(10, 10);
+
+        window.clear(sf::Color::Black);
+        window.draw(text);
+        window.display();
+
+        if (waitForInput) {
+            bool inputReceived = false;
+            while (!inputReceived) {
+                handleEvents();
+                if (!inputBuffer.empty()) {
+                    inputReceived = true;
+                }
+            }
+        }
+        else {
+            sf::sleep(sf::seconds(3)); // Show message for 3 seconds
+        }
+    }
+
+    void playRound() {
+        displayMessage("Enter a word to guess:- ", true);
+
+        while (word.empty()) {
+            handleEvents();
+        }
+
+        while (attempts > 0 && guessed != word) {
+            drawer.displayGame(guessed, incorrectGuesses, attempts, word);
+            handleEvents();
+        }
+
+        if (guessed == word) {
+            displayMessage("| C O N G U R A T S | \n You've guessed the word!", false);
+        }
+        else {
+            displayMessage("| G A M E  O V E R |\n The word was : " +word, false);
+        }
+
+        gameRunning = false;
+    }
+
+    void resetGame() {
+        word.clear();
+        guessed.clear();
+        incorrectGuesses.clear();
+        attempts = 6;
+        gameRunning = true; // Start a new game
+    }
+
 };
 
 int main() {
-    sf::RenderWindow window(sf::VideoMode(600, 600), "Hangman Game");
+    sf::RenderWindow window(sf::VideoMode(800, 600), "Hangman Game");
 
     try {
         HangmanDrawer drawer(window);
