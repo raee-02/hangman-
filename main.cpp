@@ -314,7 +314,7 @@ private:
             displayMessage("| C O N G U R A T S | \n You've guessed the word!", false);
         }
         else {
-            displayMessage("| G A M E  O V E R |\n The word was : " +word, false);
+            displayMessage("| G A M E  O V E R |\n The word was : " + word, false);
         }
 
         gameRunning = false;
